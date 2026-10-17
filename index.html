@@ -231,7 +231,8 @@ function rudPanel(rows){
     <p class="muted mono" style="margin-top:10px;font-size:.85rem;overflow-wrap:anywhere">รูด ${st.digit} = ${s.k} เลข: ${s.set.map(pad2).join(' ')}</p>
   </div>
   <div class="tiles">
-    <div class="tile"><div class="k">ถูก</div><div class="v">${fmtN(s.hits)} / ${fmtN(n)}</div><div class="s">${(s.rate*100).toFixed(1)}% (ควรเป็น ${(s.p*100).toFixed(0)}%)</div></div>
+    <div class="tile"><div class="k">โอกาสถูกงวดหน้า</div><div class="v">${(s.p*100).toFixed(0)}%</div><div class="s">คงที่ทุกงวด ทุกเลขรูด ไม่ขึ้นกับผลย้อนหลัง</div></div>
+    <div class="tile"><div class="k">ย้อนหลังที่ผ่านมา ถูกกี่งวด</div><div class="v">${fmtN(s.hits)} / ${fmtN(n)}</div><div class="s">${(s.rate*100).toFixed(1)}% (ค่าที่ควรเป็น ${(s.p*100).toFixed(0)}%) เป็นแค่ผลบังเอิญของช่วงนี้</div></div>
     <div class="tile"><div class="k">ไม่ถูกติดกันตอนนี้</div><div class="v">${s.miss} งวด</div><div class="s">สูงสุดในอดีต ${s.maxMiss} งวด</div></div>
     <div class="tile"><div class="k">กำไร/ขาดทุนรวมถ้าแทงทุกงวด</div><div class="v ${s.pl>=0?'pos':'neg'}">${fmtM(s.pl)}</div><div class="s">ลงทุนรวม ${fmtN(Math.round(s.k*st.stake*n))} บาท</div></div>
     <div class="tile"><div class="k">ค่าคาดหวังต่องวด</div><div class="v ${s.ev>=0?'pos':'neg'}">${fmtM(s.ev)}</div><div class="s">${evPct.toFixed(1)}% ของเงินที่ลง คุ้มทุนเมื่อจ่ายเงินรวม ${(100*st.stake/st.stake).toFixed(0)} เท่า</div></div>
