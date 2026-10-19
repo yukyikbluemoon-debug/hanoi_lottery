@@ -36,9 +36,21 @@ TH_MONTHS.update({m: i + 1 for i, m in enumerate(
     ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."])})
 
 
+LAST_ERR = {}
+
+
 def get(url):
-    r = requests.get(url, headers={"User-Agent": UA}, timeout=30)
-    return r.text if r.status_code == 200 else None
+    try:
+        r = requests.get(url, headers={"User-Agent": UA}, timeout=30)
+    except requests.RequestException as e:
+        LAST_ERR[url] = f"network error {e}"
+        print(f"GET {url} -> network error: {e}")
+        return None
+    if r.status_code != 200:
+        LAST_ERR[url] = f"HTTP {r.status_code}"
+        print(f"GET {url} -> HTTP {r.status_code}, {len(r.text)} bytes, head={r.text[:200]!r}")
+        return None
+    return r.text
 
 
 # ---------- xoso.com.vn (ปกติ) ----------
@@ -60,12 +72,28 @@ def parse_xoso(html):
             g1 = nums[0]
         if db and g1:
             break
+    if db and g1:
+        return db, g1
+    # วิธีสำรอง: อ่านเป็นข้อความทีละบรรทัด หาป้ายรางวัลแล้วเอาเลข 5 หลักตัวถัดไป
+    lines = [x.strip() for x in soup.get_text("\n").split("\n") if x.strip()]
+    db = g1 = None
+    for i, ln in enumerate(lines):
+        up = ln.upper()
+        if up in DB_LABELS and db is None:
+            db = next((x for x in lines[i + 1:i + 6] if re.fullmatch(r"\d{5}", x)), None)
+        elif up in G1_LABELS and g1 is None:
+            g1 = next((x for x in lines[i + 1:i + 4] if re.fullmatch(r"\d{5}", x)), None)
     return (db, g1) if db and g1 else None
 
 
 def fetch_xoso(d):
     html = get(XOSO_URL.format(d=d))
-    return parse_xoso(html) if html else None
+    if not html:
+        return None
+    res = parse_xoso(html)
+    if not res:
+        print(f"xoso {d}: โหลดหน้าได้ {len(html)} ตัวอักษร แต่อ่านรางวัลไม่ได้ head={html[:200]!r}")
+    return res
 
 
 # ---------- ผลหวย.com (VIP และตัวตรวจซ้ำรอบปกติ) ----------
@@ -125,16 +153,16 @@ def new_row(source, d, special5, top3, bottom2, official):
 
 
 def selftest():
-    ok = True
     x = fetch_xoso(date(2026, 10, 17))
-    print("xoso 2026-10-17:", x, "OK" if x == ("64538", "25177") else "FAIL")
-    ok &= x == ("64538", "25177")
+    print("xoso 2026-10-17:", x, "OK" if x == ("64538", "25177") else "FAIL (ใช้ ผลหวย.com แทนได้)")
     time.sleep(DELAY)
-    v = fetch_site("vip")
-    got = v.get(date(2026, 10, 17))
-    print("site vip 2026-10-17:", got, "rows", len(v), "OK" if got == ("23316", "316", "30") else "FAIL")
-    ok &= got == ("23316", "316", "30")
-    return ok
+    sn = fetch_site("normal").get(date(2026, 10, 17))
+    print("site normal 2026-10-17:", sn, "OK" if sn == ("64538", "538", "77") else "FAIL")
+    time.sleep(DELAY)
+    v = fetch_site("vip").get(date(2026, 10, 17))
+    print("site vip 2026-10-17:", v, "OK" if v == ("23316", "316", "30") else "FAIL")
+    # ต้องมีแหล่งรอบปกติอย่างน้อยหนึ่งแหล่ง และ VIP ต้องอ่านได้
+    return (x == ("64538", "25177") or sn == ("64538", "538", "77")) and v == ("23316", "316", "30")
 
 
 def main():
@@ -146,6 +174,9 @@ def main():
     have = {k: {r["draw_date"] for r in rows if r["source"] == k} for k in SITE_ROUNDS}
     today = datetime.now(ICT).date()
     rows = [r for r in rows if r["source"] == "normal" or r["source"] in SITE_ROUNDS]
+
+    site_norm = fetch_site("normal")
+    time.sleep(DELAY)
 
     # 1) ปกติจาก xoso
     last = max(date.fromisoformat(x) for x in normal)
@@ -170,6 +201,16 @@ def main():
             time.sleep(DELAY)
         d += timedelta(days=1)
 
+    # 1b) วันที่ xoso ไม่ได้ผล แต่ ผลหวย.com มี ให้เติมจาก ผลหวย.com (ผลปกติชุดเดียวกัน)
+    filled = 0
+    for d, (sp, t3, b2) in sorted(site_norm.items()):
+        if d.isoformat() not in normal and d >= today - timedelta(days=MAX_BACK_DAYS):
+            row = new_row("normal", d, sp, t3, b2, True)
+            rows.append(row)
+            normal[row["draw_date"]] = row
+            filled += 1
+            print(f"normal {d} จาก ผลหวย.com (xoso ไม่มีผล) {t3}/{b2}")
+
     # 2) รอบอื่นจาก ผลหวย.com (VIP เป็นรอบที่เล่น ที่เหลือเป็นรอบอ้างอิง)
     added_v = 0
     for rnd in SITE_ROUNDS:
@@ -185,7 +226,6 @@ def main():
 
     # 3) ตรวจซ้ำรอบปกติระหว่างสองแหล่ง
     mismatches = []
-    site_norm = fetch_site("normal")
     for d, (sp, t3, b2) in site_norm.items():
         r = normal.get(d.isoformat())
         if r and (r["top3"], r["bottom2"]) != (t3, b2):
@@ -197,7 +237,7 @@ def main():
             latest[r["source"]] = r["draw_date"]
     with open("data/status.json", "w", encoding="utf-8") as f:
         json.dump({"last_run": datetime.now(ICT).strftime("%Y-%m-%dT%H:%M"), "latest": latest,
-                   "added_normal": added_n, "added_site_rounds": added_v,
+                   "added_normal": added_n, "filled_from_site": filled, "added_site_rounds": added_v,
                    "crosscheck_mismatches": len(mismatches)}, f, ensure_ascii=False, indent=1)
     print(f"added normal {added_n}, site rounds {added_v}; cross-checked {len(site_norm)} normal rows")
     if mismatches:
