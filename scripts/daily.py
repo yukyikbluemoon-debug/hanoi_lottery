@@ -2,7 +2,8 @@
 """อัปเดตผลหวยฮานอยลง data/hanoi_lottery.csv
 
 รอบ ปกติ (normal): ผลทางการ XSMB จาก xoso.com.vn (หน้าต่อวัน) ย้อนหลังไกลสุดปี 2002
-รอบ VIP: จากหน้า history ของ ผลหวย.com (ผลจริงมีแค่ตั้งแต่ 2026-07-25)
+รอบ VIP, เฉพาะกิจ(adhoc), สามัคคี(union), กาชาด(redcross): จากหน้า history ของ ผลหวย.com
+(มีผลจริงแค่ราว 80-86 งวด ตั้งแต่ปลาย ก.ค. 2026)
 ตรวจซ้ำ: เทียบรอบปกติของ ผลหวย.com กับของ xoso ถ้าไม่ตรงจะจบงานด้วย exit code 2
 
 กฎ: บน 3 ตัว = 3 หลักท้ายของรางวัลพิเศษ, ล่าง 2 ตัว = 2 หลักท้ายของรางวัลที่ 1 (ปกติ)
@@ -23,6 +24,7 @@ UA = "hanoi-lottery-stats/1.0 (personal statistics project; daily single run; +h
 XOSO_URL = "https://xoso.com.vn/xsmb-{d:%d-%m-%Y}.html"
 SITE = "https://xn--t3cmiit.com/hanoi-lottery/{r}/history"  # ผลหวย.com
 DELAY = 3.0
+SITE_ROUNDS = ["vip", "adhoc", "union", "redcross"]  # เว็บ: vip, adhoc, union, redcross
 MAX_BACK_DAYS = 40
 ICT = timezone(timedelta(hours=7))
 DB_LABELS = {"ĐB", "G.ĐB", "ĐẶC BIỆT", "GIẢI ĐB", "GIẢI ĐẶC BIỆT", "DB", "G.DB"}
@@ -141,9 +143,9 @@ def main():
 
     rows = load()
     normal = {r["draw_date"]: r for r in rows if r["source"] == "normal"}
-    vip = {r["draw_date"] for r in rows if r["source"] == "vip"}
+    have = {k: {r["draw_date"] for r in rows if r["source"] == k} for k in SITE_ROUNDS}
     today = datetime.now(ICT).date()
-    rows = [r for r in rows if r["source"] in ("normal", "vip")]
+    rows = [r for r in rows if r["source"] == "normal" or r["source"] in SITE_ROUNDS]
 
     # 1) ปกติจาก xoso
     last = max(date.fromisoformat(x) for x in normal)
@@ -168,17 +170,18 @@ def main():
             time.sleep(DELAY)
         d += timedelta(days=1)
 
-    # 2) VIP จาก ผลหวย.com
+    # 2) รอบอื่นจาก ผลหวย.com (VIP เป็นรอบที่เล่น ที่เหลือเป็นรอบอ้างอิง)
     added_v = 0
-    site_vip = fetch_site("vip")
-    if not site_vip:
-        print("WARN: อ่านตาราง VIP จาก ผลหวย.com ไม่ได้")
-    for d, (sp, t3, b2) in sorted(site_vip.items()):
-        if d.isoformat() not in vip:
-            rows.append(new_row("vip", d, sp, t3, b2, False))
-            added_v += 1
-            print(f"vip {d} OK {t3}/{b2}")
-    time.sleep(DELAY)
+    for rnd in SITE_ROUNDS:
+        site = fetch_site(rnd)
+        if not site:
+            print(f"WARN: อ่านตารางรอบ {rnd} จาก ผลหวย.com ไม่ได้")
+        for d, (sp, t3, b2) in sorted(site.items()):
+            if d.isoformat() not in have[rnd]:
+                rows.append(new_row(rnd, d, sp, t3, b2, False))
+                added_v += 1
+        print(f"{rnd}: site rows {len(site)}")
+        time.sleep(DELAY)
 
     # 3) ตรวจซ้ำรอบปกติระหว่างสองแหล่ง
     mismatches = []
@@ -188,7 +191,7 @@ def main():
         if r and (r["top3"], r["bottom2"]) != (t3, b2):
             mismatches.append((d.isoformat(), r["top3"], r["bottom2"], t3, b2))
     save(rows)
-    print(f"added normal {added_n}, vip {added_v}; cross-checked {len(site_norm)} normal rows")
+    print(f"added normal {added_n}, site rounds {added_v}; cross-checked {len(site_norm)} normal rows")
     if mismatches:
         for m in mismatches:
             print(f"::error::MISMATCH {m[0]} xoso={m[1]}/{m[2]} site={m[3]}/{m[4]}")
