@@ -2,7 +2,7 @@
 """อัปเดตผลหวยฮานอยลง data/hanoi_lottery.csv
 
 รอบ ปกติ (normal): ผลทางการ XSMB จาก xoso.com.vn (หน้าต่อวัน) ย้อนหลังไกลสุดปี 2002
-รอบ VIP, เฉพาะกิจ(adhoc), สามัคคี(union), กาชาด(redcross): จากหน้า history ของ ผลหวย.com
+รอบ VIP, เฉพาะกิจ(adhoc), พิเศษ(special), กาชาด(redcross): จากหน้า history ของ ผลหวย.com
 (มีผลจริงแค่ราว 80-86 งวด ตั้งแต่ปลาย ก.ค. 2026)
 ตรวจซ้ำ: เทียบรอบปกติของ ผลหวย.com กับของ xoso ถ้าไม่ตรงจะจบงานด้วย exit code 2
 
@@ -24,7 +24,7 @@ UA = "hanoi-lottery-stats/1.0 (personal statistics project; daily single run; +h
 XOSO_URL = "https://xoso.com.vn/xsmb-{d:%d-%m-%Y}.html"
 SITE = "https://xn--t3cmiit.com/hanoi-lottery/{r}/history"  # ผลหวย.com
 DELAY = 3.0
-SITE_ROUNDS = ["vip", "adhoc", "union", "redcross", "special"]  # เว็บ: vip, adhoc, union, redcross
+SITE_ROUNDS = ["vip", "adhoc", "redcross", "special"]  # เว็บ: vip, adhoc, redcross, special
 MAX_BACK_DAYS = 40
 ICT = timezone(timedelta(hours=7))
 DB_LABELS = {"ĐB", "G.ĐB", "ĐẶC BIỆT", "GIẢI ĐB", "GIẢI ĐẶC BIỆT", "DB", "G.DB"}

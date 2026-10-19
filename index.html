@@ -104,7 +104,7 @@ svg text{font-family:var(--mono);font-size:11px;fill:var(--muted)}
     <label>รอบ
       <select id="src">
         <optgroup label="รอบที่เล่น"><option value="normal">ปกติ (ผลทางการ)</option><option value="vip">VIP</option></optgroup>
-        <optgroup label="รอบอ้างอิง (ไม่ได้เล่น)"><option value="adhoc">เฉพาะกิจ</option><option value="redcross">กาชาด</option><option value="union">สามัคคี</option><option value="special">พิเศษ</option></optgroup>
+        <optgroup label="รอบอ้างอิง (ไม่ได้เล่น)"><option value="adhoc">เฉพาะกิจ</option><option value="redcross">กาชาด</option><option value="special">พิเศษ</option></optgroup>
       </select></label>
     <label>เลขที่ใช้
       <select id="field"><option value="b">ล่าง 2 ตัว</option><option value="t2">บน 3 ตัว (เอา 2 ตัวท้าย)</option></select></label>
@@ -127,7 +127,7 @@ svg text{font-family:var(--mono);font-size:11px;fill:var(--muted)}
 
 <script>
 const RAW=[];
-const SRC={normal:'ปกติ',vip:'VIP',adhoc:'เฉพาะกิจ',redcross:'กาชาด',union:'สามัคคี',special:'พิเศษ'};
+const SRC={normal:'ปกติ',vip:'VIP',adhoc:'เฉพาะกิจ',redcross:'กาชาด',special:'พิเศษ'};
 const $=id=>document.getElementById(id);
 let DATA=RAW.map(r=>({s:r[0],d:r[1],t:r[2],b:r[3]}));
 const st={src:'normal',field:'b',from:'',to:'',tab:'ov',digit:6,inc0:true,payout:80,stake:1,loaded:'ยังไม่ได้โหลดข้อมูล'};
@@ -363,7 +363,7 @@ function notes(rows){
   $('notes').innerHTML=out.map(t=>`<p class="warn" style="margin-bottom:8px">${t}</p>`).join('');
 }
 
-const ORDER=[['adhoc','16:30'],['redcross','16:30'],['union','17:30'],['special','17:30'],['normal','18:30'],['vip','19:30']];
+const ORDER=[['adhoc','16:30'],['redcross','16:30'],['special','17:30'],['normal','18:30'],['vip','19:30']];
 let RUN=null;
 function ictNow(){const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date()).reduce((o,x)=>(o[x.type]=x.value,o),{});return {date:`${p.year}-${p.month}-${p.day}`,min:(+p.hour%24)*60+ +p.minute}}
 function addDays(d,n){const t=new Date(d+'T00:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)}
