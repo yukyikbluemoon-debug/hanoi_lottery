@@ -381,7 +381,7 @@ function renderStatus(){
     else{const lag=Math.round((new Date(due)-new Date(last.d))/864e5);stt=`ค้าง ${lag} วัน`;cls='neg'}
     return `<tr><td>${SRC[k]}${(k==='normal'||k==='vip')?' ★':''}</td><td>${tm}</td><td>${last?fmtD(last.d):'-'}</td><td>${last?last.t:'-'}</td><td>${last?last.b:'-'}</td><td>${fmtN(rs.length)}</td><td class="${cls}" style="font-family:var(--font)">${stt}</td></tr>`}).join('');
   let run='';
-  if(RUN&&RUN.last_run){run=`ระบบอัปเดตอัตโนมัติรันล่าสุด ${RUN.last_run.replace('T',' ').slice(0,16)} น. (เวลาไทย)`}
+  if(RUN&&RUN.last_run){run=`ระบบอัปเดตอัตโนมัติรันล่าสุด ${RUN.last_run.replace('T',' ').slice(0,16)} น. (เวลาไทย) · อัปเดตอัตโนมัติหลังผลออกทุกรอบ (ประมาณ :45 ของ 16–20 น.) และหน้านี้อาจช้าหลังรัน 1–2 นาที · <a href="https://github.com/yukyikbluemoon-debug/hanoi_lottery/actions/workflows/daily.yml" target="_blank" rel="noopener">กด Run workflow เพื่ออัปเดตเอง</a>`}
   else run='ไม่พบไฟล์สถานะการรัน (data/status.json) ถ้าใช้บน GitHub ให้กด Run workflow ใน Actions หนึ่งครั้ง';
   $('status').innerHTML=`<h2 style="margin-bottom:8px">สถานะข้อมูลแต่ละรอบ</h2><div class="tbl"><table><thead><tr><th>รอบ</th><th>เวลาออกผล</th><th>งวดล่าสุด</th><th>บน</th><th>ล่าง</th><th>จำนวนงวด</th><th>สถานะ</th></tr></thead><tbody>${rowsH}</tbody></table></div><p class="muted" style="margin-top:8px;font-size:.85rem">★ = รอบที่เล่น · ${run}</p>`;
 }
