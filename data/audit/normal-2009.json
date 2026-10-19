@@ -1,0 +1,12 @@
+{
+ "year": 2009,
+ "checked": 363,
+ "same": 363,
+ "mismatch": [],
+ "missing_in_csv": [],
+ "xoso_failed": [
+  "2009-01-25",
+  "2009-01-26"
+ ],
+ "csv_rows_in_year": 363
+}
