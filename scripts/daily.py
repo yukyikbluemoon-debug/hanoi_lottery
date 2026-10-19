@@ -12,7 +12,7 @@
 ใช้:  python scripts/daily.py            อัปเดต
       python scripts/daily.py --selftest ตรวจ parser กับวันที่รู้ผลแล้ว
 """
-import csv, re, sys, time
+import csv, json, re, sys, time
 from datetime import date, datetime, timedelta, timezone
 import requests
 from bs4 import BeautifulSoup
@@ -191,6 +191,14 @@ def main():
         if r and (r["top3"], r["bottom2"]) != (t3, b2):
             mismatches.append((d.isoformat(), r["top3"], r["bottom2"], t3, b2))
     save(rows)
+    latest = {}
+    for r in rows:
+        if r["draw_date"] > latest.get(r["source"], ""):
+            latest[r["source"]] = r["draw_date"]
+    with open("data/status.json", "w", encoding="utf-8") as f:
+        json.dump({"last_run": datetime.now(ICT).strftime("%Y-%m-%dT%H:%M"), "latest": latest,
+                   "added_normal": added_n, "added_site_rounds": added_v,
+                   "crosscheck_mismatches": len(mismatches)}, f, ensure_ascii=False, indent=1)
     print(f"added normal {added_n}, site rounds {added_v}; cross-checked {len(site_norm)} normal rows")
     if mismatches:
         for m in mismatches:

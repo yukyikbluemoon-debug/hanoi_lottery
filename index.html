@@ -98,6 +98,8 @@ svg text{font-family:var(--mono);font-size:11px;fill:var(--muted)}
 
   <p class="disclaimer">ใช้ดูสถิติย้อนหลังเท่านั้น ผลแต่ละงวดไม่ขึ้นกับงวดก่อนหน้า สถิติจึงทำนายงวดต่อไปไม่ได้ และไม่มีวิธีแทงใดที่ทำให้ค่าคาดหวังเป็นบวกได้ถ้าอัตราจ่ายต่ำกว่าส่วนกลับของความน่าจะเป็น</p>
 
+  <div id="status" class="box" style="margin-bottom:14px"></div>
+
   <div class="bar">
     <label>รอบ
       <select id="src">
@@ -359,8 +361,32 @@ function notes(rows){
   if(rows.length){const last=rows.reduce((m,r)=>r.d>m?r.d:m,'');const age=(Date.now()-new Date(last+'T00:00:00+07:00'))/864e5;if(age>2.5)out.push(`งวดล่าสุดของรอบนี้คือ ${last} เก่ากว่า 2 วัน ระบบอัปเดตอัตโนมัติอาจหยุดทำงาน ให้ตรวจที่แท็บ Actions บน GitHub`)}
   $('notes').innerHTML=out.map(t=>`<p class="warn" style="margin-bottom:8px">${t}</p>`).join('');
 }
+
+const ORDER=[['adhoc','16:30'],['redcross','16:30'],['union','17:30'],['normal','18:30'],['vip','19:30']];
+let RUN=null;
+function ictNow(){const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date()).reduce((o,x)=>(o[x.type]=x.value,o),{});return {date:`${p.year}-${p.month}-${p.day}`,min:(+p.hour%24)*60+ +p.minute}}
+function addDays(d,n){const t=new Date(d+'T00:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)}
+function fmtD(d){if(!d)return '-';const m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];const [y,mo,da]=d.split('-');return `${+da} ${m[+mo-1]} ${y}`}
+function renderStatus(){
+  const now=ictNow();
+  const rowsH=ORDER.map(([k,tm])=>{
+    const rs=DATA.filter(r=>r.s===k);
+    let last=null;for(const r of rs)if(!last||r.d>last.d)last=r;
+    const [h,mi]=tm.split(':').map(Number);
+    const due=now.min>=h*60+mi+60?now.date:addDays(now.date,-1);
+    let stt,cls='';
+    if(!last){stt='ยังไม่มีข้อมูล';cls='neg'}
+    else if(last.d>=due){stt='ทันสมัย';cls='pos'}
+    else{const lag=Math.round((new Date(due)-new Date(last.d))/864e5);stt=`ค้าง ${lag} วัน`;cls='neg'}
+    return `<tr><td>${SRC[k]}${(k==='normal'||k==='vip')?' ★':''}</td><td>${tm}</td><td>${last?fmtD(last.d):'-'}</td><td>${last?last.t:'-'}</td><td>${last?last.b:'-'}</td><td>${fmtN(rs.length)}</td><td class="${cls}" style="font-family:var(--font)">${stt}</td></tr>`}).join('');
+  let run='';
+  if(RUN&&RUN.last_run){run=`ระบบอัปเดตอัตโนมัติรันล่าสุด ${RUN.last_run.replace('T',' ').slice(0,16)} น. (เวลาไทย)`}
+  else run='ไม่พบไฟล์สถานะการรัน (data/status.json) ถ้าใช้บน GitHub ให้กด Run workflow ใน Actions หนึ่งครั้ง';
+  $('status').innerHTML=`<h2 style="margin-bottom:8px">สถานะข้อมูลแต่ละรอบ</h2><div class="tbl"><table><thead><tr><th>รอบ</th><th>เวลาออกผล</th><th>งวดล่าสุด</th><th>บน</th><th>ล่าง</th><th>จำนวนงวด</th><th>สถานะ</th></tr></thead><tbody>${rowsH}</tbody></table></div><p class="muted" style="margin-top:8px;font-size:.85rem">★ = รอบที่เล่น · ${run}</p>`;
+}
 function render(){
   const rows=cur();
+  renderStatus();
   notes(rows);
   document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.t===st.tab));
   const html=st.tab==='ov'?ovPanel(rows):st.tab==='rud'?rudPanel(rows):st.tab==='freq'?freqPanel(rows):st.tab==='seq'?seqPanel(rows):xPanel();
@@ -383,11 +409,11 @@ $('panel').addEventListener('change',e=>{
 function parseCsv(text,name){
   const lines=String(text).replace(/^\uFEFF/,'').split(/\r?\n/).filter(Boolean);
   const h=lines[0].split(',');const ix=n=>h.indexOf(n);
-  const is=ix('source'),id=ix('draw_date'),it=ix('top3'),ib=ix('bottom2');
+  const is=ix('source'),id=ix('draw_date'),it=ix('top3'),ib=ix('bottom2');const ifa=ix('fetched_at');
   if([is,id,it,ib].some(i=>i<0)){$('notes').innerHTML='<p class="warn">ไฟล์นี้ไม่มีคอลัมน์ source, draw_date, top3, bottom2</p>';return false}
   const out=[];
   for(let i=1;i<lines.length;i++){const c=lines[i].split(',');
-    if(/^\d{3}$/.test(c[it])&&/^\d{2}$/.test(c[ib])&&SRC[c[is]])out.push({s:c[is],d:c[id],t:c[it],b:c[ib]})}
+    if(/^\d{3}$/.test(c[it])&&/^\d{2}$/.test(c[ib])&&SRC[c[is]])out.push({s:c[is],d:c[id],t:c[it],b:c[ib],f:ifa>=0?c[ifa]:''})}
   if(!out.length){$('notes').innerHTML='<p class="warn">ไม่พบแถวที่อ่านได้ในไฟล์นี้</p>';return false}
   DATA=out;st.loaded='ไฟล์ '+name;resetRange();render();return true;
 }
@@ -396,6 +422,7 @@ $('csv').addEventListener('change',e=>{
   const rd=new FileReader();rd.onload=()=>parseCsv(rd.result,f.name);rd.readAsText(f);
 });
 resetRange();render();
+fetch('data/status.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{RUN=j;renderStatus()}).catch(()=>{});
 fetch('data/hanoi_lottery.csv',{cache:'no-store'}).then(r=>r.ok?r.text():Promise.reject()).then(x=>parseCsv(x,'data/hanoi_lottery.csv'))
   .catch(()=>{$('notes').innerHTML='<p class="warn">ยังไม่พบไฟล์ data/hanoi_lottery.csv ในที่เดียวกับหน้านี้ ให้กด "โหลดไฟล์ CSV ใหม่" เพื่อเลือกไฟล์เอง</p>'});
 </script>
