@@ -1,0 +1,14 @@
+{
+ "year": 2026,
+ "checked": 288,
+ "same": 288,
+ "mismatch": [],
+ "missing_in_csv": [],
+ "xoso_failed": [
+  "2026-02-16",
+  "2026-02-17",
+  "2026-02-18",
+  "2026-02-19"
+ ],
+ "csv_rows_in_year": 288
+}
