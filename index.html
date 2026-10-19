@@ -118,6 +118,7 @@ svg text{font-family:var(--mono);font-size:11px;fill:var(--muted)}
     <button class="tab" role="tab" data-t="ov">ภาพรวม</button>
     <button class="tab" role="tab" data-t="rud">รูด</button>
     <button class="tab" role="tab" data-t="freq">ความถี่ 00-99</button>
+    <button class="tab" role="tab" data-t="calc">คำนวณรูด</button>
     <button class="tab" role="tab" data-t="seq">ลำดับและการซ้ำ</button>
     <button class="tab" role="tab" data-t="x">ข้ามรอบ</button>
   </div>
@@ -384,12 +385,49 @@ function renderStatus(){
   else run='ไม่พบไฟล์สถานะการรัน (data/status.json) ถ้าใช้บน GitHub ให้กด Run workflow ใน Actions หนึ่งครั้ง';
   $('status').innerHTML=`<h2 style="margin-bottom:8px">สถานะข้อมูลแต่ละรอบ</h2><div class="tbl"><table><thead><tr><th>รอบ</th><th>เวลาออกผล</th><th>งวดล่าสุด</th><th>บน</th><th>ล่าง</th><th>จำนวนงวด</th><th>สถานะ</th></tr></thead><tbody>${rowsH}</tbody></table></div><p class="muted" style="margin-top:8px;font-size:.85rem">★ = รอบที่เล่น · ${run}</p>`;
 }
+
+function calcCore(rows){
+  const n=rows.length,D=[...Array(10).keys()];
+  const sets=D.map(d=>new Set(rudSet(d,st.inc0)));
+  const H=D.map(d=>rows.map(r=>sets[d].has(r.v)?1:0));
+  const P=H.map(h=>{const p=[0];for(const x of h)p.push(p[p.length-1]+x);return p});
+  const norm=a=>{const mn=Math.min(...a),mx=Math.max(...a);return a.map(x=>mx>mn?(x-mn)/(mx-mn)*100:50)};
+  const feat=(t,w)=>D.map(d=>({w:w[d],r10:(P[d][t]-P[d][Math.max(0,t-10)])/Math.min(10,t||1),r30:(P[d][t]-P[d][Math.max(0,t-30)])/Math.min(30,t||1),r100:(P[d][t]-P[d][Math.max(0,t-100)])/Math.min(100,t||1)}));
+  const score=f=>{const a=norm(f.map(x=>x.w)),b=norm(f.map(x=>x.r30)),c=norm(f.map(x=>x.r100)),e=norm(f.map(x=>x.r10));return D.map(i=>(a[i]+b[i]+c[i]+e[i])/4)};
+  const w=D.map(()=>0);const bt={top:0,bot:0,cnt:0,rnd:0};
+  for(let t=0;t<n;t++){
+    if(t>=100){const s=score(feat(t,w));let top=0,bot=0;for(const i of D){if(s[i]>s[top])top=i;if(s[i]<s[bot])bot=i}
+      bt.cnt++;bt.top+=H[top][t];bt.bot+=H[bot][t]}
+    for(const d of D)w[d]=w[d]*0.97+H[d][t];
+  }
+  const f=feat(n,w),s=score(f);
+  const since=D.map(d=>{let k=0;for(let i=n-1;i>=0&&!H[d][i];i--)k++;return k});
+  return {f,s,since,bt,k:sets[0].size,n};
+}
+function calcPanel(rows){
+  if(rows.length<130)return `<div class="box"><p class="warn">ต้องมีข้อมูลอย่างน้อย 130 งวดจึงจะคำนวณและทดสอบย้อนหลังได้ รอบนี้มี ${rows.length} งวด</p></div>`;
+  const c=calcCore(rows),p=c.k/100,N=c.bt.cnt,pay=st.payout,stake=st.stake;
+  const order=[...Array(10).keys()].sort((a,b)=>c.s[b]-c.s[a]);
+  const tr=order.map((d,i)=>`<tr><td>#${i+1} รูด ${d}</td><td>${c.s[d].toFixed(1)}</td><td>${(c.f[d].r10*100).toFixed(0)}%</td><td>${(c.f[d].r30*100).toFixed(0)}%</td><td>${(c.f[d].r100*100).toFixed(0)}%</td><td>${c.since[d]} งวด</td></tr>`).join('');
+  const line=(name,h)=>{const z=(h-N*p)/Math.sqrt(N*p*(1-p)),pl=h*pay*stake-N*c.k*stake;
+    return `<tr><td>${name}</td><td>${fmtN(h)} / ${fmtN(N)}</td><td>${(h/N*100).toFixed(2)}%</td><td>${fmtP(normP2(z))}</td><td class="${pl>=0?'pos':'neg'}">${pl>=0?'+':''}${fmtN(Math.round(pl))}</td></tr>`};
+  const exp=N*p;
+  return `<div class="box"><h2>คะแนนรูดแต่ละหลัก (แบบเดียวกับเครื่องมือจัดอันดับเลข)</h2>
+    <p class="muted" style="margin-bottom:10px;font-size:.88rem">รวมความใหม่ (น้ำหนักลดลง 3% ต่องวด) กับอัตราถูกใน 10/30/100 งวดล่าสุด แล้วจัดเป็นคะแนน 0–100 <b>คะแนนนี้ไม่ใช่ความน่าจะเป็น</b> ความน่าจะเป็นถูกงวดหน้าของทุกหลักคือ ${(p*100).toFixed(0)}% เท่ากัน</p>
+    <div class="tbl"><table><thead><tr><th>อันดับ</th><th>คะแนน</th><th>10 งวด</th><th>30 งวด</th><th>100 งวด</th><th>ไม่ถูกมาแล้ว</th></tr></thead><tbody>${tr}</tbody></table></div></div>
+  <div class="box" style="margin-top:14px"><h2>ทดสอบย้อนหลังว่าคะแนนนี้ได้เปรียบหรือไม่</h2>
+    <p class="muted" style="margin-bottom:10px;font-size:.88rem">ทุกงวดตั้งแต่งวดที่ 101 คำนวณคะแนนจากข้อมูลก่อนหน้างวดนั้นเท่านั้น แล้วแทงรูดหลักอันดับ 1 (และอันดับสุดท้ายเทียบ) แทงละ ${stake} บาท ${c.k} เลข จ่าย ${pay} บาท</p>
+    <div class="tbl"><table><thead><tr><th>วิธีเลือก</th><th>ถูก/งวด</th><th>อัตราถูก</th><th>p เทียบ ${(p*100).toFixed(0)}%</th><th>กำไร(ขาดทุน) บาท</th></tr></thead><tbody>
+      ${line('รูดอันดับ 1',c.bt.top)}${line('รูดอันดับสุดท้าย',c.bt.bot)}
+      <tr><td>สุ่ม (ที่คาดไว้)</td><td>${fmtN(Math.round(exp))} / ${fmtN(N)}</td><td>${(p*100).toFixed(2)}%</td><td>-</td><td class="neg">${fmtN(Math.round(exp*pay*stake-N*c.k*stake))}</td></tr></tbody></table></div>
+    <p style="margin-top:10px">${Math.abs(c.bt.top-exp)<2*Math.sqrt(N*p*(1-p))?'อันดับ 1 ถูกใกล้เคียงการสุ่ม คะแนนนี้ไม่ได้ช่วยให้ได้เปรียบ':(c.bt.top>exp?'อันดับ 1 ถูกมากกว่าสุ่มอย่างมีนัยสำคัญ ต้องตรวจซ้ำกับข้อมูลชุดอื่นก่อนเชื่อ':'อันดับ 1 ถูกน้อยกว่าสุ่ม')} และไม่ว่าจะถูกกี่เปอร์เซ็นต์ ถ้าไม่ถึง 25% (เท่ากับจ่าย 100 เท่า) ก็ยังขาดทุนเฉลี่ยตามค่าคาดหวัง</p></div>`;
+}
 function render(){
   const rows=cur();
   renderStatus();
   notes(rows);
   document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.t===st.tab));
-  const html=st.tab==='ov'?ovPanel(rows):st.tab==='rud'?rudPanel(rows):st.tab==='freq'?freqPanel(rows):st.tab==='seq'?seqPanel(rows):xPanel();
+  const html=st.tab==='ov'?ovPanel(rows):st.tab==='rud'?rudPanel(rows):st.tab==='freq'?freqPanel(rows):st.tab==='seq'?seqPanel(rows):st.tab==='calc'?calcPanel(rows):xPanel();
   $('panel').innerHTML=html;
   const ld=DATA.filter(r=>r.s==='normal').map(r=>r.d).sort().pop();$('meta').textContent=`${fmtN(DATA.length)} แถว จาก ${st.loaded}`+(ld?` · รอบปกติล่าสุด ${ld}`:'');
 }
