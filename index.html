@@ -119,6 +119,7 @@ svg text{font-family:var(--mono);font-size:11px;fill:var(--muted)}
     <button class="tab" role="tab" data-t="rud">รูด</button>
     <button class="tab" role="tab" data-t="freq">ความถี่ 00-99</button>
     <button class="tab" role="tab" data-t="calc">คำนวณรูด</button>
+    <button class="tab" role="tab" data-t="day">จำลองรายวัน</button>
     <button class="tab" role="tab" data-t="seq">ลำดับและการซ้ำ</button>
     <button class="tab" role="tab" data-t="x">ข้ามรอบ</button>
   </div>
@@ -422,12 +423,58 @@ function calcPanel(rows){
       <tr><td>สุ่ม (ที่คาดไว้)</td><td>${fmtN(Math.round(exp))} / ${fmtN(N)}</td><td>${(p*100).toFixed(2)}%</td><td>-</td><td class="neg">${fmtN(Math.round(exp*pay*stake-N*c.k*stake))}</td></tr></tbody></table></div>
     <p style="margin-top:10px">${Math.abs(c.bt.top-exp)<2*Math.sqrt(N*p*(1-p))?'อันดับ 1 ถูกใกล้เคียงการสุ่ม คะแนนนี้ไม่ได้ช่วยให้ได้เปรียบ':(c.bt.top>exp?'อันดับ 1 ถูกมากกว่าสุ่มอย่างมีนัยสำคัญ ต้องตรวจซ้ำกับข้อมูลชุดอื่นก่อนเชื่อ':'อันดับ 1 ถูกน้อยกว่าสุ่ม')} และไม่ว่าจะถูกกี่เปอร์เซ็นต์ ถ้าไม่ถึง 25% (เท่ากับจ่าย 100 เท่า) ก็ยังขาดทุนเฉลี่ยตามค่าคาดหวัง</p></div>`;
 }
+/* ---------- จำลองรายวัน: รูดเลขเดียวหลายรอบ ---------- */
+st.day={date:'',stake:1,mode:'both',digit:5,off:[]};
+function hasDigit(n,x){return n%10===x||Math.floor(n/10)===x}
+function dayPanel(){
+  const d=st.day,K=ORDER.map(o=>o[0]);
+  const dates=[...new Set(DATA.filter(r=>K.includes(r.s)).map(r=>r.d))].sort().reverse();
+  if(!dates.length)return '<div class="box"><p class="muted">ยังไม่มีข้อมูล</p></div>';
+  if(!d.date||!dates.includes(d.date))d.date=dates.find(x=>K.every(k=>DATA.some(r=>r.s===k&&r.d===x)))||dates[0];
+  const stake=d.stake,per=19*stake,pay=st.payout*stake,p=0.19;
+  const rounds=ORDER.map(([k,tm])=>({k,tm,row:DATA.find(r=>r.s===k&&r.d===d.date),on:!d.off.includes(k)}));
+  const bets=[];
+  for(const r of rounds){if(!r.on||!r.row)continue;
+    if(d.mode!=='t')bets.push({k:r.k,kind:'ล่าง',n:parseInt(r.row.b,10)});
+    if(d.mode!=='b')bets.push({k:r.k,kind:'บน',n:parseInt(r.row.t.slice(-2),10)})}
+  const N=bets.length,calc=x=>{const h=bets.filter(b=>hasDigit(b.n,x)).length;return {h,rec:h*pay,cost:N*per,net:h*pay-N*per}};
+  const sel=calc(d.digit);
+  const opts=dates.slice(0,90).map(x=>`<option value="${x}"${x===d.date?' selected':''}>${fmtD(x)}</option>`).join('');
+  const chks=rounds.map(r=>`<label class="chk"><input type="checkbox" class="dy-r" data-k="${r.k}"${r.on?' checked':''}>${SRC[r.k]} ${r.tm}</label>`).join('');
+  const dbtns=[...Array(10).keys()].map(x=>`<button class="dbtn dyd" data-d="${x}" aria-pressed="${x===d.digit}">${x}</button>`).join('');
+  const roundRows=rounds.map(r=>{
+    if(!r.row)return `<tr><td>${SRC[r.k]} ${r.tm}</td><td colspan="4" class="muted" style="font-family:var(--font)">ยังไม่มีผล</td></tr>`;
+    const t2=parseInt(r.row.t.slice(-2),10),b2=parseInt(r.row.b,10);
+    const cell=(n,show)=>!show?'<td class="muted">-</td>':`<td>${pad2(n)} ${hasDigit(n,d.digit)?'<b class="pos">ถูก</b>':'<span class="muted">ไม่ถูก</span>'}</td>`;
+    return `<tr${r.on?'':' style="opacity:.45"'}><td>${SRC[r.k]} ${r.tm}</td><td>${r.row.t}</td>${cell(t2,r.on&&d.mode!=='b')}${cell(b2,r.on&&d.mode!=='t')}</tr>`}).join('');
+  const digitRows=[...Array(10).keys()].map(x=>{const c=calc(x);return `<tr${x===d.digit?' style="font-weight:700;background:var(--surface2)"':''}><td>รูด ${x}</td><td>${c.h} / ${N}</td><td>${fmtN(c.rec)}</td><td>${fmtN(c.cost)}</td><td class="${c.net>0?'pos':c.net<0?'neg':''}">${fmtM(c.net)}</td></tr>`}).join('');
+  let pm=[],cumP=0,probProfit=0;
+  for(let k=0;k<=N;k++){const pr=Math.exp(lchoose(N,k)+k*Math.log(p)+(N-k)*Math.log(1-p));const net=k*pay-N*per;if(net>0)probProfit+=pr;pm.push({k,pr,net})}
+  const need=N?Math.floor(N*per/pay)+1:0;
+  const probRows=pm.filter(x=>x.pr>0.0005||x.k<=3).map(x=>`<tr><td>${x.k}</td><td>${(x.pr*100).toFixed(1)}%</td><td>${fmtN(x.k*pay)}</td><td class="${x.net>0?'pos':x.net<0?'neg':''}">${fmtM(x.net)}</td></tr>`).join('');
+  return `<div class="box"><h2>จำลองผลรูดรายวัน (ใช้ข้อมูลทุกรอบ ไม่ขึ้นกับตัวกรองด้านบน)</h2>
+    <div class="opts" style="margin:8px 0 12px">
+      <label>วันที่<select id="dy-date">${opts}</select></label>
+      <label>แทง<select id="dy-mode"><option value="both"${d.mode==='both'?' selected':''}>บนและล่าง</option><option value="b"${d.mode==='b'?' selected':''}>ล่างอย่างเดียว</option><option value="t"${d.mode==='t'?' selected':''}>บนอย่างเดียว</option></select></label>
+      <label>บาทต่อตัว<input type="number" id="dy-stake" min="1" step="1" value="${stake}"></label>
+    </div>
+    <div class="opts" style="margin-bottom:10px">${chks}</div>
+    <label style="margin-bottom:6px">เลขที่รูด</label><div class="digits">${dbtns}</div>
+    <p class="muted" style="font-size:.85rem;margin-top:8px">รูด 1 เลข = แทง 19 ตัว ตัวละ ${stake} บาท = ${fmtN(per)} บาทต่อการแทง · ถูกได้ ${fmtN(pay)} บาท · บน = 2 หลักท้ายของบน 3 (ไม่นับหลักร้อย)</p></div>
+  <div class="box"><h2>ผลของวันที่เลือก เมื่อรูด ${d.digit}</h2><div class="tbl"><table><thead><tr><th>รอบ</th><th>บน 3</th><th>บน (2 ท้าย)</th><th>ล่าง 2</th></tr></thead><tbody>${roundRows}</tbody></table></div>
+    <div class="tiles" style="margin-top:12px"><div class="tile"><div class="k">ถูก</div><div class="v">${sel.h} / ${N}</div></div><div class="tile"><div class="k">ได้รับ (บาท)</div><div class="v">${fmtN(sel.rec)}</div></div><div class="tile"><div class="k">เงินแทง (บาท)</div><div class="v">${fmtN(sel.cost)}</div></div><div class="tile"><div class="k">สุทธิ (บาท)</div><div class="v ${sel.net>0?'pos':sel.net<0?'neg':''}">${fmtM(sel.net)}</div></div></div></div>
+  <div class="box"><h2>เทียบรูดทุกเลข 0–9 ในวันเดียวกัน</h2><div class="tbl"><table><thead><tr><th>เลขที่รูด</th><th>ถูก</th><th>ได้รับ</th><th>เงินแทง</th><th>สุทธิ</th></tr></thead><tbody>${digitRows}</tbody></table></div></div>
+  <div class="box"><h2>โอกาสต่อวันเมื่อแทง ${N} ครั้ง (ถูกครั้งละ 19% อิสระต่อกัน)</h2><div class="tbl"><table><thead><tr><th>ถูกกี่ครั้ง</th><th>โอกาส</th><th>ได้รับ</th><th>สุทธิ</th></tr></thead><tbody>${probRows}</tbody></table></div>
+    <p style="margin-top:8px">ต้องถูกอย่างน้อย <b>${need}</b> ครั้งจึงกำไร · โอกาสกำไรสุทธิ <b>${(probProfit*100).toFixed(1)}%</b> · โอกาสขาดทุนหรือเสมอ <b>${((1-probProfit)*100).toFixed(1)}%</b></p>
+    <p class="muted" style="font-size:.85rem">ทุกเลข 0–9 มีโอกาสเท่ากัน ตารางเทียบรูดทุกเลขใช้ดูผลย้อนหลังของวันนั้นเท่านั้น ไม่ได้บอกว่าวันถัดไปเลขไหนจะดี</p></div>`;
+}
+
 function render(){
   const rows=cur();
   renderStatus();
   notes(rows);
   document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.t===st.tab));
-  const html=st.tab==='ov'?ovPanel(rows):st.tab==='rud'?rudPanel(rows):st.tab==='freq'?freqPanel(rows):st.tab==='seq'?seqPanel(rows):st.tab==='calc'?calcPanel(rows):xPanel();
+  const html=st.tab==='ov'?ovPanel(rows):st.tab==='rud'?rudPanel(rows):st.tab==='freq'?freqPanel(rows):st.tab==='seq'?seqPanel(rows):st.tab==='calc'?calcPanel(rows):st.tab==='day'?dayPanel():xPanel();
   $('panel').innerHTML=html;
   const ld=DATA.filter(r=>r.s==='normal').map(r=>r.d).sort().pop();$('meta').textContent=`${fmtN(DATA.length)} แถว จาก ${st.loaded}`+(ld?` · รอบปกติล่าสุด ${ld}`:'');
 }
@@ -439,7 +486,13 @@ $('from').addEventListener('change',e=>{st.from=e.target.value;render()});
 $('to').addEventListener('change',e=>{st.to=e.target.value;render()});
 $('tabs').addEventListener('click',e=>{const b=e.target.closest('.tab');if(b){st.tab=b.dataset.t;render()}});
 $('panel').addEventListener('click',e=>{const b=e.target.closest('.dbtn');if(b){st.digit=+b.dataset.d;render()}});
+$('panel').addEventListener('click',e=>{const b=e.target.closest('.dyd');if(b){st.day.digit=+b.dataset.d;render()}});
 $('panel').addEventListener('change',e=>{
+  const t=e.target;
+  if(t.id==='dy-date'){st.day.date=t.value;render();return}
+  if(t.id==='dy-mode'){st.day.mode=t.value;render();return}
+  if(t.id==='dy-stake'){const v=parseFloat(t.value);if(v>0){st.day.stake=v;render()}return}
+  if(t.classList&&t.classList.contains('dy-r')){const k=t.dataset.k;st.day.off=t.checked?st.day.off.filter(x=>x!==k):[...st.day.off,k];render();return}
   if(e.target.id==='stake'){const v=parseFloat(e.target.value);if(v>0){st.stake=v;render()}}
   else if(e.target.id==='payout'){const v=parseFloat(e.target.value);if(v>0){st.payout=v;render()}}
   else if(e.target.id==='inc0'){st.inc0=e.target.checked;render()}
