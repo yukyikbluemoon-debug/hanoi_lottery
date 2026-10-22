@@ -1,14 +1,14 @@
 {
- "last_run": "2026-10-22T02:46",
+ "last_run": "2026-10-22T21:42",
  "latest": {
-  "vip": "2026-10-21",
-  "special": "2026-10-21",
-  "redcross": "2026-10-21",
-  "normal": "2026-10-21",
-  "adhoc": "2026-10-21"
+  "vip": "2026-10-22",
+  "special": "2026-10-22",
+  "redcross": "2026-10-22",
+  "normal": "2026-10-22",
+  "adhoc": "2026-10-22"
  },
- "added_normal": 0,
+ "added_normal": 1,
  "filled_from_site": 0,
- "added_site_rounds": 0,
+ "added_site_rounds": 4,
  "crosscheck_mismatches": 0
 }
