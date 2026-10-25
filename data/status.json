@@ -1,5 +1,5 @@
 {
- "last_run": "2026-10-25T20:56",
+ "last_run": "2026-10-25T21:36",
  "latest": {
   "vip": "2026-10-25",
   "special": "2026-10-25",
@@ -7,8 +7,8 @@
   "normal": "2026-10-25",
   "adhoc": "2026-10-25"
  },
- "added_normal": 1,
+ "added_normal": 0,
  "filled_from_site": 0,
- "added_site_rounds": 4,
+ "added_site_rounds": 0,
  "crosscheck_mismatches": 0
 }
